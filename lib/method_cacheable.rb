@@ -87,7 +87,7 @@ module MethodCacheable
   end
 
   class MethodCache
-    attr_accessor :caller, :method, :args, :options, :cache_operation
+    attr_accessor :caller, :method, :args, :options, :cache_operation, :key_fields
 
     def args=(args)
       args  = [args] unless args.is_a? Array
@@ -97,7 +97,9 @@ module MethodCacheable
     def initialize(caller, *method_cache_args)
       self.caller          = caller
       self.cache_operation = method_cache_args.map {|x| x if x.is_a? Symbol }.compact.first||:fetch
-      self.options         = method_cache_args.map {|x| x if x.is_a? Hash   }.compact.first
+      self.options         = method_cache_args.map {|x| x if x.is_a? Hash   }.compact.first||{}
+      self.key_fields = self.options.select { |k,v| [:shard, :prefix, :suffix, :version, :v].include?(k) }
+      self.options = self.options.delete_if { |k,v| [:shard, :prefix, :suffix, :version, :v].include?(k) }
     end
 
     # Calls the cache based on the given cache_operation
@@ -152,7 +154,7 @@ module MethodCacheable
       tmp_args    = args   if tmp_args.blank?
       key_method = "#{tmp_method}_key".to_sym
       key = caller.send key_method, *tmp_args if caller.respond_to? key_method
-      key ||= caller.build_key(:name => tmp_method, :args => tmp_args)
+      key ||= caller.build_key({:name => tmp_method, :args => tmp_args}.merge(key_fields))
     end
 
     # Removes the current key from the cache store
